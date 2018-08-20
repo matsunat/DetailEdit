@@ -1,0 +1,16 @@
+.THIS .header-select{
+    background: rgb(243, 242, 242);
+    border: none;
+}
+.THIS .slds-edit-button{
+    display : none;
+}
+.THIS .slds-edit-btn-cell:hover button{
+    display: block;
+}
+.THIS .sort-icons{
+    display : none;
+}
+.THIS .sort-icons-cell:hover div{
+    display: block;
+}

@@ -1,0 +1,8 @@
+<design:component >
+	<design:attribute name="Title" label="タイトル" description="リストタイトル" default="見積明細"/>
+    <design:attribute name="sObjectType" label="オブジェクト" description="主オブジェクト名" default="Estimates__c"/>
+    <design:attribute name="refObjectType" label="関連オブジェクト" description="従オブジェクト名" default="EstimatesDetail__c"/>
+    <design:attribute name="refObjects" label="子リレーション名" description="子リレーション名" default="EstimatesDetails__r"/>
+    <design:attribute name="ColumnStr" label="表示カラム" description="一覧に表示するカラム。IdとNameはリンクになります。カンマ区切りで設定してください。__rなどのリレーション項目は指定できません。数式を使用して表示してください。" default="Name,Product__c,UnitPrice__c,Quantity__c,Amount__c"/>
+    <design:attribute name="pageSize" label="ページサイズ" description="1ページ辺りの表示件数" default="10"/>
+</design:component>

@@ -1,0 +1,235 @@
+<aura:component controller="DetailEditController"
+                implements="flexipage:availableForAllPageTypes,flexipage:availableForRecordHome,force:hasRecordId,forceCommunity:availableForAllPageTypes,force:lightningQuickAction" access="global" >
+	<!-- options -->
+    <aura:attribute name="Title" type="string" default="見積明細" description="リストタイトル"/>
+    <aura:attribute name="sObjectType" type="string" default="Estimates__c" description="主オブジェクト名"/>
+    <aura:attribute name="refObjectType" type="string" default="EstimatesDetail__c" description="従オブジェクト名"/>
+    <aura:attribute name="refObjects" type="string" default="EstimatesDetails__r" description="従オブジェクト子リレーション名"/>
+    <aura:attribute name="ColumnStr" type="string" default="Name" description="従オブジェクトの取得項目"/>
+    <aura:attribute name="pageSize" type="Integer" default="10" />
+    <!-- private -->
+    <aura:attribute name="ObjectColumn" type="string[]"/>
+    <aura:attribute name="err" type="boolean" default="false" access="private"/>
+    <aura:attribute name="errMsg" type="String" default="システムエラーが発生しました。" access="private"/>
+    <aura:attribute name="mapShow" type="list" access="private"/>
+    <aura:attribute name="ListData" type="sObject[]" access="private"/>
+    <aura:attribute name="ListHeader" type="string[]" access="private"/>
+    <aura:attribute name="ListHeaderApi" type="string[]" access="private"/>
+    <aura:attribute name="mapClmInfo" type="list" access="private"/>
+    <aura:attribute name="cnt" type="Integer" access="private" default="0"/>
+    <aura:attribute name="start" type="Integer" access="private" default="0"/>
+    <aura:attribute name="end" type="Integer" access="private" default="0"/>
+    <aura:attribute name="nowPage" type="Integer" access="private" default="0"/>
+    <aura:attribute name="allPage" type="Integer" access="private" default="0"/>
+    <aura:attribute name="viewcnt" type="string" access="private" default="1-100"/>   
+    <aura:attribute name="edited" type="boolean" access="private" default="false"/>
+    <aura:attribute name="allChk" type="boolean" access="private" default="false"/>
+    <aura:attribute name="selectRec" type="Integer" access="private" default="0"/>
+    <aura:attribute name="mouseStart" type="string" />
+    <aura:attribute name="newWidth" type="string" />
+    <aura:attribute name="currentEle" type="Object" />
+    <aura:attribute name="SortClm" type="string" default="Name"/>
+    <aura:attribute name="Sort" type="string" default="asc"/>
+    <!-- event -->
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}"/>
+    <aura:handler event="c:fieldEdit" action="{!c.fieldEdit}"/>
+    <!-- contents -->
+    <div class="slds-page-header">
+        <div class="slds-grid">
+            <div class="slds-col slds-has-flexi-truncate">
+                <div class="slds-media slds-no-space slds-grow">
+                    <div class="slds-media__figure">
+                        <span class="slds-avatar slds-avatar_middle">
+                            <lightning:icon iconName="custom:custom83" size="middle" alternativeText="custom83"/>
+                        </span>
+                    </div>
+                    <div class="slds-media__body">
+                        <nav>
+                        <ol class="slds-breadcrumb slds-line-height_reset">
+                            <li class="slds-breadcrumb__item">
+                                 <li class="slds-breadcrumb__item"><span>インライン編集</span></li>
+                            </li>
+                        </ol>
+                        </nav>
+                        <h1 class="slds-page-header__title slds-p-right_x-small">
+                            {!v.Title}
+                        </h1>
+                    </div>
+                </div>
+            </div>
+            <div class="slds-col slds-no-flex slds-grid slds-align-top slds-p-bottom_xx-small">
+                <div class="slds-button-group" role="group">
+                	<button class="slds-button slds-button_neutral" onclick="{!c.createData}">新規</button>
+                    <button class="slds-button slds-button_neutral" onclick="{!c.doInit}">再読込</button>
+                </div>
+            </div>
+        </div>
+        <div class="slds-grid">
+            <aura:if isTrue="{!v.cnt>0}">
+            <div class="slds-col slds-align-middle">
+            	<p class="slds-text-body_small">{!v.allPage} ページ中 {!v.nowPage}ページを表示 </p>
+            </div>
+            <div class="slds-col slds-no-flex slds-grid slds-align-bottom">
+				<div class="slds-dropdown-trigger slds-dropdown-trigger_click slds-m-left_xx-small">
+                        <button class="slds-button slds-button_icon slds-m-left_xx-small slds-button_icon-border-filled" title="前ページ" onclick="{!c.Previous}" disabled="{!v.start == 0}">
+                            <lightning:icon iconName="utility:left" size="small" alternativeText="left"/>
+                            <span class="slds-assistive-text">prev</span>
+                        </button>
+                        <button class="slds-button slds-button_icon slds-button_icon-border-filled" title="次ページ" onclick="{!c.Next}" disabled="{!v.end + 1 >= v.cnt}">
+                            <lightning:icon iconName="utility:right" size="small" alternativeText="right"/>
+                            <span class="slds-assistive-text">next</span>
+                        </button>
+                </div>
+            </div>
+            </aura:if>
+        </div>
+    </div>
+    <aura:if isTrue="{!v.err}">
+        <div class="slds-m-vertical_small">
+        	<div class="slds-notify slds-notify--alert slds-theme--error slds-theme--alert-texture slds-banner slds-m-bottom_x-small" role="alert">
+                <span class="slds-assistive-text">Error</span>
+                <h2>{!v.errMsg}</h2>
+            </div>        
+        </div>
+    </aura:if>
+    <div class="slds-card">
+        <div aura:id="spinner" class="demo-only demo--inverse slds-hide" style="height: 6rem;">
+          <div class="slds-spinner_container">
+            <div role="status" class="slds-spinner slds-spinner_medium">
+              <span class="slds-assistive-text">Loading</span>
+              <div class="slds-spinner__dot-a"></div>
+              <div class="slds-spinner__dot-b"></div>
+            </div>
+          </div>
+        </div>
+        <!-- Spinner -->
+        <aura:if isTrue="{!v.cnt>0}">
+            <div onmouseup="{!c.resetColumn}">
+            	<table class="slds-table slds-table_bordered slds-table_fix-cols slds-table_edit slds-table_fixed-layout slds-no-cell-focus" role="grid">
+                        <thead>
+                            <tr class="slds-text-title_caps slds-line-height_reset">
+                                <th scope="col" style="width: 2rem;">
+                                    <div class="slds-truncate slds-th__action slds-th__action_form">
+                                        <ui:inputCheckbox value="{!v.allChk}" change="{!c.clickHeaderChk}"/>
+                                    </div>
+                                </th>
+                                <aura:iteration items="{!v.ListHeader}" var="f" indexVar="index">
+                                    <th aria-sort="none" scope="col" class="nocase slds-is-sortable slds-is-resizable slds-text-title_caps">
+                                        <div class="slds-truncate" onmousemove="{!c.setNewWidth}">
+                                            <a class="slds-th__action slds-text-link_reset sort-icons-cell" href="javascript:void(0);" role="button" tabindex="0" rel="{!index}" onclick="{!c.clickHeader}">
+                                                <span class="slds-truncate" onclick="{!c.clickHeader}" title="{!f}">{!f}</span>
+                                                <div class="slds-icon_container sort-icons">
+                                                    <lightning:icon iconName="utility:sort" size="xx-small" alternativeText="sort"/>
+                                                </div>
+                                            </a>
+                                            <div class="slds-resizable">
+                                              <input type="range" min="20" max="1000" class="slds-resizable__input slds-assistive-text" tabindex="0" />
+                                              <span class="slds-resizable__handle" onmousedown="{!c.calculateWidth}" >
+                                                <span class="slds-resizable__divider"></span>
+                                              </span> 
+                                            </div> 
+                                        </div>
+                                    </th>
+                                </aura:iteration>
+                                <th style="width: 3rem;" scope="col">
+                                    <div class="slds-truncate slds-p-vertical_xx-small slds-p-horizontal_xx-small" /> 
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody onmouseup="{!c.resetColumn}">
+                            <aura:iteration items="{!v.mapShow}" indexVar="key" var="r" >
+                                <tr class="slds-hint-parent">
+                                    <td class="slds-cell-edit" role="gridcell">
+                                        <ui:inputCheckbox value="{!r.Selected}" change="{!c.clickRecordChk}"/>
+                                    </td>
+                                    <aura:if isTrue="{!r.Name!=null}">
+                                        <td class="slds-cell-edit" role="gridcell">
+                                            <span class="slds-grid slds-grid_align-spread">
+                                                <span class="slds-truncate" title="{!r.Name}">
+                                                    <a href="{!'../one/one.app?#/sObject/'+r.key+'/view'}" target="_blank" >
+                                                        {!r.Name}
+                                                    </a>
+                                                </span>
+                                                <button class="slds-button slds-button_icon slds-cell-edit__button slds-m-left_x-small slds-edit-button" tabindex="0" >
+                                                     <lightning:icon iconName="utility:lock" size="xx-small" alternativeText="lock"/>
+                                                </button>
+                                            </span>
+                                        </td>
+                                    </aura:if>
+                                    <aura:iteration items="{!r.record}" var="rec" >
+                                        <td class="{!'slds-cell-edit slds-edit-btn-cell '+rec.edited}" role="gridcell" ondblclick="{!c.clickClm}">
+                                            <ul id="rec-Pram" class="slds-hide">
+                                                <li id="recKey">{!r.key}</li>
+                                                <li id="apiName">{!rec.apiName}</li>
+                                            </ul>
+                                            <span class="slds-grid slds-grid_align-spread">
+                                                <span class="slds-truncate" title="{!rec.value}">
+                                                    <aura:if isTrue="{!rec.fieldType=='DATETIME'}">
+                                                        <ui:outputDateTime value="{!rec.value}"/>
+                                                    </aura:if>
+                                                    <aura:if isTrue="{!rec.fieldType=='DATE'}">
+                                                        <ui:outputDate value="{!rec.value}"/>
+                                                    </aura:if>
+                                                    <aura:if isTrue="{!rec.fieldType=='BOOLEAN'}">
+                                                        <span class="slds-checkbox slds-m-left_small">
+                                                        <ui:outputCheckbox value="{!rec.value}"/>
+                                                        </span>
+                                                    </aura:if>                                            
+                                                    <aura:if isTrue="{!rec.fieldType=='CURRENCY'}">
+                                                        <ui:outputCurrency value="{!rec.value}" class="slds-text-align_right"/>
+                                                    </aura:if>
+                                                    <aura:if isTrue="{!rec.fieldType=='NUMBER'}">
+                                                        <ui:outputNumber value="{!rec.value}" class="slds-text-align_right"/>
+                                                    </aura:if>
+                                                    <aura:if isTrue="{!rec.fieldType=='STRING'||rec.fieldType=='TEXTAREA' ||rec.fieldType=='PICKLIST' ||rec.fieldType=='EMAIL'||rec.fieldType=='URL'}">
+                                                        {!rec.value}
+                                                    </aura:if>
+                                                </span>
+                                                <aura:if isTrue="{!rec.isUpdate}">
+                                                    <button class="slds-button slds-button_icon slds-cell-edit__button slds-m-left_x-small slds-edit-button" onClick="{!c.clickClm}">
+                                                         <lightning:icon iconName="utility:edit" size="xx-small" alternativeText="edit"/>
+                                                    </button>
+                                                    <aura:set attribute="else">
+                                                        <button class="slds-button slds-button_icon slds-cell-edit__button slds-m-left_x-small slds-edit-button">
+                                                             <lightning:icon iconName="utility:lock" size="xx-small" alternativeText="lock"/>
+                                                        </button>                                            
+                                                    </aura:set>
+                                                </aura:if>
+                                            </span>
+                                            <aura:if isTrue="{!rec.editmode}">
+                                                <c:EditTableCloum sObjectId="{!r.key}" apiName="{!rec.apiName}" value="{!rec.value}"
+                                                                  fieldType="{!rec.fieldType}" length="{!rec.length}" selectRec="{!v.selectRec}"
+                                                                  piclistLabel="{!rec.piclistLabel}" piclistValue="{!rec.piclistValue}"/>
+                                            </aura:if>
+                                        </td>
+                                    </aura:iteration>
+			                        <td role="gridcell" class="slds-text-align_right">
+										<lightning:buttonMenu alternativeText="レコードアクション" menuAlignment="right" onselect="{!c.recordAction}">
+			                                <lightning:menuItem label="削除" value="{!r.key}" />
+			                            </lightning:buttonMenu>
+			                        </td>
+			                        <!-- レコードアクション -->    
+                                </tr>
+                            </aura:iteration>
+                        </tbody>
+                    </table>
+                	<!-- table -->
+            	</div>
+                <aura:set attribute="else">
+                    <div class="slds-illustration slds-illustration_large" aria-hidden="true">
+                        <img src="/img/chatter/Desert.svg" class="slds-illustration__svg" alt=""/>
+                        <div class="slds-text-color_weak">
+                            <h3 class="slds-text-heading_medium">関連データがありません</h3>
+                        </div>
+                    </div>
+                </aura:set>
+        	</aura:if>
+    </div>
+    <aura:if isTrue="{!v.edited}">
+        <div style="min-height:150px"></div>
+		<div class="slds-align_absolute-center">
+            <button type="button" class="slds-button slds-button_neutral" onclick="{!c.CancelEdit}">キャンセル</button>
+            <button type="button" class="slds-button slds-button_brand" onclick="{!c.SaveEdit}">保存</button>
+        </div>
+    </aura:if>
+</aura:component>
